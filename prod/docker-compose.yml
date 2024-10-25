@@ -1,4 +1,24 @@
 services:
+  transactionsdb:
+    container_name: transactionsdb
+    ports:
+      - 3306:3306
+    environment:
+      MYSQL_DATABASE: transactionsdb
+    extends:
+      file: common-config.yml
+      service: microservice-db-config
+
+  blacklistdb:
+    container_name: blacklistdb
+    ports:
+      - 3307:3306
+    environment:
+      MYSQL_DATABASE: blacklistdb
+    extends:
+      file: common-config.yml
+      service: microservice-db-config
+
   naming-server:
     image: "yoramnagdocker/naming-server:0.0.1-SNAPSHOT"
     container_name: naming-server-ms
@@ -17,6 +37,11 @@ services:
     ports:
       - "5672:5672"
       - "15672:15672"
+    depends_on:
+      transactionsdb:
+        condition: service_healthy
+      blacklistdb:
+        condition: service_healthy
     healthcheck:
       test: rabbitmq-diagnostics check_port_connectivity
       interval: 10s
@@ -46,7 +71,7 @@ services:
       service: microservice-base-config
 
   black-list:
-    image: "yoramnagdocker/black-list-service:0.0.2-SNAPSHOT"
+    image: "yoramnagdocker/black-list-service:0.0.3-SNAPSHOT"
     container_name: black-list-ms
     ports:
       - "8000:8000"
@@ -55,12 +80,13 @@ services:
         condition: service_healthy
     environment:
       SPRING_APPLICATION_NAME: "black-list-service"
+      SPRING_DATASOURCE_URL: "jdbc:mysql://blacklistdb:3306/blacklistdb"
     extends:
       file: common-config.yml
       service: microservice-configserver-config
 
   transactions:
-    image: "yoramnagdocker/transactions-service:0.0.2-SNAPSHOT"
+    image: "yoramnagdocker/transactions-service:0.0.3-SNAPSHOT"
     container_name: transactions-ms
     ports:
       - "8100:8100"
@@ -69,12 +95,10 @@ services:
         condition: service_healthy
     environment:
       SPRING_APPLICATION_NAME: "transactions-service"
+      SPRING_DATASOURCE_URL: "jdbc:mysql://transactionsdb:3306/transactionsdb"
     extends:
       file: common-config.yml
       service: microservice-configserver-config
-
-
-
 
 networks:
   creditCard:
