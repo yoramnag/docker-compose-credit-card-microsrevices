@@ -19,18 +19,6 @@ services:
       file: common-config.yml
       service: microservice-db-config
 
-  naming-server:
-    image: "yoramnagdocker/naming-server:0.0.1-SNAPSHOT"
-    container_name: naming-server-ms
-    ports:
-      - "8761:8761"
-    deploy:
-      resources:
-        limits:
-          memory: 700m
-    networks:
-      - creditCard
-
   rabbit:
     image: rabbitmq:3.13-management
     hostname: rabbitmq
@@ -53,7 +41,7 @@ services:
       service: network-deploy-service
 
   configserver:
-    image: "yoramnagdocker/configserver:0.0.1-SNAPSHOT"
+    image: "yoramnagdocker/configserver:0.0.2-SNAPSHOT"
     container_name: configserver-ms
     ports:
       - "8071:8071"
@@ -70,35 +58,59 @@ services:
       file: common-config.yml
       service: microservice-base-config
 
+  eurekaserver:
+    image: "yoramnagdocker/eurekaserver:0.0.1-SNAPSHOT"
+    container_name: eurekaserver-ms
+    ports:
+      - "8070:8070"
+    depends_on:
+      configserver:
+        condition: service_healthy
+    healthcheck:
+      test: "curl --fail --silent localhost:8071/actuator/health/readiness | grep UP || exit 1"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    extends:
+      file: common-config.yml
+      service: microservice-configserver-config
+    environment:
+      SPRING_APPLICATION_NAME: "eurekaserver"
+
   black-list:
-    image: "yoramnagdocker/black-list-service:0.0.3-SNAPSHOT"
+    image: "yoramnagdocker/black-list-service:0.0.4-SNAPSHOT"
     container_name: black-list-ms
     ports:
       - "8000:8000"
     depends_on:
       configserver:
         condition: service_healthy
+      eurekaserver:
+        condition: service_healthy
     environment:
       SPRING_APPLICATION_NAME: "black-list-service"
       SPRING_DATASOURCE_URL: "jdbc:mysql://blacklistdb:3306/blacklistdb"
     extends:
       file: common-config.yml
-      service: microservice-configserver-config
+      service: microservice-eureka-config
 
   transactions:
-    image: "yoramnagdocker/transactions-service:0.0.3-SNAPSHOT"
+    image: "yoramnagdocker/transactions-service:0.0.4-SNAPSHOT"
     container_name: transactions-ms
     ports:
       - "8100:8100"
     depends_on:
       configserver:
         condition: service_healthy
+      eurekaserver:
+        condition: service_healthy
     environment:
       SPRING_APPLICATION_NAME: "transactions-service"
       SPRING_DATASOURCE_URL: "jdbc:mysql://transactionsdb:3306/transactionsdb"
     extends:
       file: common-config.yml
-      service: microservice-configserver-config
+      service: microservice-eureka-config
 
 networks:
   creditCard:
