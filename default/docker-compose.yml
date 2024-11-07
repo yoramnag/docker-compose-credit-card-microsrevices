@@ -80,10 +80,16 @@ services:
 
 
   black-list:
-    image: "yoramnagdocker/black-list-service:0.0.4-SNAPSHOT"
+    image: "yoramnagdocker/black-list-service:0.0.5-SNAPSHOT"
     container_name: black-list-ms
     ports:
       - "8000:8000"
+    healthcheck:
+      test: "curl --fail --silent localhost:8000/actuator/health/readiness | grep UP || exit 1"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
     depends_on:
       configserver:
         condition: service_healthy
@@ -97,10 +103,16 @@ services:
       service: microservice-eureka-config
 
   transactions:
-    image: "yoramnagdocker/transactions-service:0.0.4-SNAPSHOT"
+    image: "yoramnagdocker/transactions-service:0.0.5-SNAPSHOT"
     container_name: transactions-ms
     ports:
       - "8100:8100"
+    healthcheck:
+      test: "curl --fail --silent localhost:8100/actuator/health/readiness | grep UP || exit 1"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
     depends_on:
       configserver:
         condition: service_healthy
@@ -109,6 +121,22 @@ services:
     environment:
       SPRING_APPLICATION_NAME: "transactions-service"
       SPRING_DATASOURCE_URL: "jdbc:mysql://transactionsdb:3306/transactionsdb"
+    extends:
+      file: common-config.yml
+      service: microservice-eureka-config
+
+  gatewayserver:
+    image: "yoramnagdocker/gatewayserver:0.0.1-SNAPSHOT"
+    container_name: gatewayserver-ms
+    ports:
+      - "8072:8072"
+    depends_on:
+      black-list:
+        condition: service_healthy
+      transactions:
+        condition: service_healthy
+    environment:
+      SPRING_APPLICATION_NAME: "gatewayserver"
     extends:
       file: common-config.yml
       service: microservice-eureka-config
