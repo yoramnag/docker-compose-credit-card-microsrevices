@@ -38,6 +38,7 @@ services:
       - minio
     networks:
       <<: *loki-dns
+
   alloy:
     image: grafana/alloy:v1.0.0
     volumes:
