@@ -90,6 +90,19 @@ services:
       file: common-config.yml
       service: network-deploy-service
 
+  tempo:
+    image: grafana/tempo:2.4.2
+    container_name: tempo
+    command: -config.file /etc/tempo-config.yml
+    ports:
+      - "3110:3100"
+      - "4317:4317"
+    volumes:
+      - ../observability/tempo/tempo.yml:/etc/tempo-config.yml
+    extends:
+      file: common-config.yml
+      service: network-deploy-service
+
   grafana:
     image: grafana/grafana:11.0.0
     environment:
@@ -200,17 +213,17 @@ services:
       file: common-config.yml
       service: network-deploy-service
 
-#  redis:
-#    image: redis
-#    ports:
-#      - "6379:6379"
-#    healthcheck:
-#      test: [ "CMD-SHELL", "redis-cli ping | grep PONG" ]
-#      timeout: 10s
-#      retries: 10
-#    extends:
-#      file: common-config.yml
-#      service: network-deploy-service
+  #  redis:
+  #    image: redis
+  #    ports:
+  #      - "6379:6379"
+  #    healthcheck:
+  #      test: [ "CMD-SHELL", "redis-cli ping | grep PONG" ]
+  #      timeout: 10s
+  #      retries: 10
+  #    extends:
+  #      file: common-config.yml
+  #      service: network-deploy-service
 
   transactionsdb:
     container_name: transactionsdb
@@ -232,47 +245,49 @@ services:
       file: common-config.yml
       service: microservice-db-config
 
-#  rabbit:
-#    image: rabbitmq:3.13-management
-#    hostname: rabbitmq
-#    ports:
-#      - "5672:5672"
-#      - "15672:15672"
-#    depends_on:
-#      transactionsdb:
-#        condition: service_healthy
-#      blacklistdb:
-#        condition: service_healthy
-#    healthcheck:
-#      test: rabbitmq-diagnostics check_port_connectivity
-#      interval: 10s
-#      timeout: 5s
-#      retries: 10
-#      start_period: 5s
-#    extends:
-#      file: common-config.yml
-#      service: network-deploy-service
+  #  rabbit:
+  #    image: rabbitmq:3.13-management
+  #    hostname: rabbitmq
+  #    ports:
+  #      - "5672:5672"
+  #      - "15672:15672"
+  #    depends_on:
+  #      transactionsdb:
+  #        condition: service_healthy
+  #      blacklistdb:
+  #        condition: service_healthy
+  #    healthcheck:
+  #      test: rabbitmq-diagnostics check_port_connectivity
+  #      interval: 10s
+  #      timeout: 5s
+  #      retries: 10
+  #      start_period: 5s
+  #    extends:
+  #      file: common-config.yml
+  #      service: network-deploy-service
 
   configserver:
-    image: "yoramnagdocker/configserver:0.0.3-SNAPSHOT"
+    image: "yoramnagdocker/configserver:0.0.5-SNAPSHOT"
     container_name: configserver-ms
     ports:
       - "8071:8071"
-#    depends_on:
-#      rabbit:
-#        condition: service_healthy
+    #    depends_on:
+    #      rabbit:
+    #        condition: service_healthy
     healthcheck:
       test: "curl --fail --silent localhost:8071/actuator/health/readiness | grep UP || exit 1"
-      interval: 10s
+      interval: 20s
       timeout: 5s
-      retries: 10
+      retries: 20
       start_period: 10s
     extends:
       file: common-config.yml
       service: microservice-base-config
+    environment:
+      OTEL_SERVICE_NAME: "configserver"
 
   eurekaserver:
-    image: "yoramnagdocker/eurekaserver:0.0.2-SNAPSHOT"
+    image: "yoramnagdocker/eurekaserver:0.0.3-SNAPSHOT"
     container_name: eurekaserver-ms
     ports:
       - "8070:8070"
@@ -281,27 +296,28 @@ services:
         condition: service_healthy
     healthcheck:
       test: "curl --fail --silent localhost:8070/actuator/health/readiness | grep UP || exit 1"
-      interval: 10s
+      interval: 20s
       timeout: 5s
-      retries: 10
+      retries: 20
       start_period: 10s
     extends:
       file: common-config.yml
       service: microservice-configserver-config
     environment:
       SPRING_APPLICATION_NAME: "eurekaserver"
+      OTEL_SERVICE_NAME: "eurekaserver"
 
 
   black-list:
-    image: "yoramnagdocker/black-list-service:0.0.7-SNAPSHOT"
+    image: "yoramnagdocker/black-list-service:0.0.9-SNAPSHOT"
     container_name: black-list-ms
     ports:
       - "8000:8000"
     healthcheck:
       test: "curl --fail --silent localhost:8000/actuator/health/readiness | grep UP || exit 1"
-      interval: 10s
+      interval: 20s
       timeout: 5s
-      retries: 10
+      retries: 20
       start_period: 10s
     depends_on:
       configserver:
@@ -311,20 +327,21 @@ services:
     environment:
       SPRING_APPLICATION_NAME: "black-list-service"
       SPRING_DATASOURCE_URL: "jdbc:mysql://blacklistdb:3306/blacklistdb"
+      OTEL_SERVICE_NAME: "black-list-service"
     extends:
       file: common-config.yml
       service: microservice-eureka-config
 
   transactions:
-    image: "yoramnagdocker/transactions-service:0.0.7-SNAPSHOT"
+    image: "yoramnagdocker/transactions-service:0.0.9-SNAPSHOT"
     container_name: transactions-ms
     ports:
       - "8100:8100"
     healthcheck:
       test: "curl --fail --silent localhost:8100/actuator/health/readiness | grep UP || exit 1"
-      interval: 10s
+      interval: 20s
       timeout: 5s
-      retries: 10
+      retries: 20
       start_period: 10s
     depends_on:
       configserver:
@@ -334,12 +351,13 @@ services:
     environment:
       SPRING_APPLICATION_NAME: "transactions-service"
       SPRING_DATASOURCE_URL: "jdbc:mysql://transactionsdb:3306/transactionsdb"
+      OTEL_SERVICE_NAME: "transactions-service"
     extends:
       file: common-config.yml
       service: microservice-eureka-config
 
   gatewayserver:
-    image: "yoramnagdocker/gatewayserver:0.0.3-SNAPSHOT"
+    image: "yoramnagdocker/gatewayserver:0.0.4-SNAPSHOT"
     container_name: gatewayserver-ms
     ports:
       - "8072:8072"
@@ -348,14 +366,15 @@ services:
         condition: service_healthy
       transactions:
         condition: service_healthy
-#      redis:
-#        condition: service_healthy
+    #      redis:
+    #        condition: service_healthy
     environment:
       SPRING_APPLICATION_NAME: "gatewayserver"
-#      SPRING_DATA_REDIS_CONNECT-TIMEOUT: 2s
-#      SPRING_DATA_REDIS_HOST: redis
-#      SPRING_DATA_REDIS_PORT: 6379
-#      SPRING_DATA_REDIS_TIMEOUT: 1s
+      OTEL_SERVICE_NAME: "gatewayserver"
+    #      SPRING_DATA_REDIS_CONNECT-TIMEOUT: 2s
+    #      SPRING_DATA_REDIS_HOST: redis
+    #      SPRING_DATA_REDIS_PORT: 6379
+    #      SPRING_DATA_REDIS_TIMEOUT: 1s
     extends:
       file: common-config.yml
       service: microservice-eureka-config
